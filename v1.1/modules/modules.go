@@ -7,7 +7,7 @@ import(
 	"strings"
 )
 const DB_FILEPATH = "./database"
-var		HASH_TABLE	= make(map[string]string)
+var		HASH_TABLE	= make(map[string]int)
 
 func check(e error) {
 	if e != nil {
@@ -36,25 +36,36 @@ func loadHashTableIfNotLoaded(){
 	
 	r2, _ := regexp.Compile(`[^,]+`)
 
+	var offset int
+	offset = 0
+
 	for _, line := range(lines){
 		parsed_line := r2.FindAllString(line, -1)
 		if len(parsed_line) == 0 {
 			continue
 		}
 		k 	:= parsed_line[0]
-		v 	:= strings.Join(parsed_line[1:], ",")
+		v 	:= offset + len(k) + 1
 		HASH_TABLE[k] = v
+		offset += int(len(line) + 1)
 	}
 }
 
 func DbGet(key string) string{
 	loadHashTableIfNotLoaded()
 
-	return HASH_TABLE[key]
+	db, err := os.ReadFile(DB_FILEPATH)
+	check(err)
+
+	offset := HASH_TABLE[key]
+
+	r1, _ := regexp.Compile(`\n`)
+	value := r1.Split(string(db)[offset:], -1)[0]
+	
+	return value
 }
 
 func DbGetOld(key string) string{
-	
 	db, err := os.ReadFile(DB_FILEPATH)
 	check(err)
 
@@ -84,10 +95,13 @@ func DbSet(key, value string){
 
 	file, err := os.OpenFile(DB_FILEPATH, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
 	check(err)
-
+	fileInfo, err := file.Stat()
+	check(err)
+	
 	defer file.Close()
 
-	HASH_TABLE[key] = value
+	HASH_TABLE[key] = int(fileInfo.Size()) + len(key) + 1
+
 	s := fmt.Sprintf("%s,%s\n",key,value)
 	_, err = file.WriteString(s)
 	check(err)
