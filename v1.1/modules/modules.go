@@ -5,9 +5,11 @@ import(
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 )
 const DB_FILEPATH = "./database"
 var		HASH_TABLE	= make(map[string]int)
+var		MUTEX sync.Mutex
 
 func check(e error) {
 	if e != nil {
@@ -92,7 +94,9 @@ func DbGetOld(key string) string{
 
 func DbSet(key, value string){
 	loadHashTableIfNotLoaded()
-
+	
+	MUTEX.Lock() 
+	defer MUTEX.Unlock()
 	file, err := os.OpenFile(DB_FILEPATH, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
 	check(err)
 	fileInfo, err := file.Stat()
@@ -101,9 +105,11 @@ func DbSet(key, value string){
 	defer file.Close()
 
 	HASH_TABLE[key] = int(fileInfo.Size()) + len(key) + 1
+	//Mutex is needed before opening the file because the fileInfo may change by another thread
 
 	s := fmt.Sprintf("%s,%s\n",key,value)
 	_, err = file.WriteString(s)
+	//Mutex is needed here to avoid writing to the file in a location different than the offset stored in the hashmap
 	check(err)
 }
 
